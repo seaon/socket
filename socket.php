@@ -1,4 +1,3 @@
-
 <?php
 
 error_reporting(E_ALL ^ E_NOTICE);
@@ -57,27 +56,17 @@ class Socket{
                 }
                 else
                 {
-                    // $length = 0;
-                    // $buffer = '';
-                    // do
-                    // {
-                    //     $l      =  socket_recv($current, $buf, 1000, 0);
-                    //     $length += $l;
-                    //     $buffer .= $buf;
-                    // }while($l == 1000);
-
                     $buffer = socket_read($client, 2048, PHP_BINARY_READ);
-
                     $user = $this->findUser($current);
-
                     if(!$this->users[$user]['shou'])
                     {
                         $this->HandShake($user, $buffer);
                     }
                     else
                     {
-                        $this->_log($buffer);
-                        exit();
+                        $request = $this->decode($buffer);
+                        $response = $this->encode('ok');
+                        socket_write($this->users[$user]['socket'], $response, strlen($response));
                     }
                 }
                 
@@ -85,19 +74,19 @@ class Socket{
         }
     }
 
-    public function handShake($user, $buffer)
+    private function handShake($user, $buffer)
     {
-        $buf  = substr($buffer, strpos($buffer, 'Sec-WebSocket-Key:')+18);
-        $key  = trim(substr($buf, 0, strpos($buf, "\r\n")));
-        
-        $new_key = base64_encode(sha1($key."258EAFA5-E914-47DA-95CA-C5AB0DC85B11",true));
-        $respond  = "HTTP/1.1 101 Switching Protocols\r\n";
-        $respond .= "Upgrade: websocket\r\n";
-        $respond .= "Sec-WebSocket-Version: 13\r\n";
-        $respond .= "Connection: Upgrade\r\n";
-        $respond .= "Sec-WebSocket-Accept: " . $new_key . "\r\n\r\n";
-        
-        socket_write($this->users[$user]['socket'], $respond, strlen($respond));
+        preg_match("/Sec-WebSocket-Key: (.*)\r\n/", $buffer, $match);
+
+        // 258EAFA5-E914-47DA-95CA-C5AB0DC85B11 magic key
+        $new_key = base64_encode(sha1($match[1]."258EAFA5-E914-47DA-95CA-C5AB0DC85B11",true));
+        $response  = "HTTP/1.1 101 Switching Protocols\r\n";
+        $response .= "Upgrade: websocket\r\n";
+        $response .= "Sec-WebSocket-Version: 13\r\n";
+        $response .= "Connection: Upgrade\r\n";
+        $response .= "Sec-WebSocket-Accept: " . $new_key . "\r\n\r\n";
+
+        socket_write($this->users[$user]['socket'], $response, strlen($response));
         $this->users[$user]['shou'] = true;
     }
 
@@ -110,6 +99,55 @@ class Socket{
         return false;
     }
 
+    public function decode( $buffer )
+    {
+        $len = $masks = $data = $decoded = null;
+        $len = ord($buffer[1]) & 127;
+
+        if ($len === 126)
+        {
+            $masks = substr($buffer, 4, 4);
+            $data = substr($buffer, 8);
+        }
+        else if ($len === 127)
+        {
+            $masks = substr($buffer, 10, 4);
+            $data = substr($buffer, 14);
+        }
+        else
+        {
+            $masks = substr($buffer, 2, 4);
+            $data = substr($buffer, 6);
+        }
+        for ($index = 0; $index < strlen($data); $index++)
+        {
+            $decoded .= $data[$index] ^ $masks[$index % 4];
+        }
+
+        return $decoded;
+
+    }
+
+    public function encode( $buffer )
+    {
+        $len = strlen($buffer);
+
+        if($len<=125)
+        {
+            $result = "\x81".chr($len).$buffer;
+        }
+        else if($len<=65535)
+        {
+            $result = "\x81".chr(126).pack("n", $len).$buffer;
+        }
+        else
+        {
+            $result = "\x81".char(127).pack("xxxxN", $len).$buffer;
+        }
+
+        return $result;
+    }
+
     public function close()
     {
         socket_close($this->_socket);
@@ -118,8 +156,6 @@ class Socket{
     public function _log( $msg )
     {
         $filename = dirname(__FILE__).'\\log.log';
-        $fileHandel = fopen($filename, 'a');
-        fwrite($fileHandel, $msg . PHP_EOL);
-        fclose($fileHandel);
+        file_put_contents($filename, $msg."\n\n", FILE_APPEND);
     }
 }
