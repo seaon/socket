@@ -3,31 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <title>webSocket</title>
+    <link rel="stylesheet" type="text/css" href="css.css">
 </head>
 <body>
-    
+    <div id="content">
+        <div id="userList"></div>
+        <div id="chatBox"></div>
+        <div id="input"></div>
+    </div>
 </body>
-<script type="text/javascript">
-var url = 'ws://127.0.0.1:8000'
-var socket = new WebSocket(url)
-
-socket.onopen = function () {
-    if (socket.readyState == 1) {
-        socket.send('type=add&ming=aaa');
-    }
-}
-
-socket.onclose = function () {
-    socket = false;
-    console.log('close')
-}
-
-socket.onmessage = function (result) {
-    console.log(result)
-}
-
-socket.onerror = function (msg) {
-    console.log(msg)
-}
-</script>
 </html>
+

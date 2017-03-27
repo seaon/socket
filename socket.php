@@ -1,10 +1,9 @@
 <?php
-
 error_reporting(E_ALL ^ E_NOTICE);
 ob_implicit_flush();
 
 $socket = new Socket();
-$socket->run();
+$socket->listen();
 
 class Socket{
 
@@ -14,25 +13,25 @@ class Socket{
     public $type     = SOCK_STREAM;
     public $protocol = SOL_TCP;
     public $users    = array();
-    private $_socket = false;
+    private $_master = false;
     private $_list   = array();
 
     public function __construct()
     {
         $this->createSocket();
-        $this->_list[] = $this->_socket;
+        $this->_list[] = $this->_master;
     }
 
     public function createSocket()
     {
-        $this->_socket = socket_create($this->domain, $this->type, $this->protocol);
-        socket_bind($this->_socket, $this->address, $this->port);
-        socket_listen($this->_socket);
-        $this->_log('Server Started : '. date('Y-m-d H:i:s'));
+        $this->_master = socket_create($this->domain, $this->type, $this->protocol);
+        socket_bind($this->_master, $this->address, $this->port);
+        socket_listen($this->_master);
+        $this->_log("\n\nServer Started : ". date('Y-m-d H:i:s'));
         $this->_log('Listening on   : '. $this->address . ' port : ' . $this->port);
     }
 
-    public function run()
+    public function listen()
     {
         while(true)
         {
@@ -44,23 +43,30 @@ class Socket{
             socket_select($clients, $write, $except, $tv_sec);
             foreach ($clients as $current)
             {
-                if ($current == $this->_socket)
+                if ($current == $this->_master)
                 {
-                    $client = socket_accept($this->_socket);
+                    $client = socket_accept($this->_master);
                     $key    = uniqid();
                     $this->_list[]   = $client;
                     $this->users[$key] = array(
-                        'socket' => $client,
-                        'shou'   => false
+                        'socket'    => $client,
+                        'handshake' => false,
                     );
                 }
                 else
                 {
                     $buffer = socket_read($client, 2048, PHP_BINARY_READ);
                     $user = $this->findUser($current);
-                    if(!$this->users[$user]['shou'])
+
+                    if(strlen($buffer) < 7)
                     {
-                        $this->HandShake($user, $buffer);
+                        $this->close($user);
+                        continue;
+                    }
+
+                    if(!$this->users[$user]['handshake'])
+                    {
+                        $this->handshake($user, $buffer);
                     }
                     else
                     {
@@ -69,12 +75,11 @@ class Socket{
                         socket_write($this->users[$user]['socket'], $response, strlen($response));
                     }
                 }
-                
             }
         }
     }
 
-    private function handShake($user, $buffer)
+    private function handshake($user, $buffer)
     {
         preg_match("/Sec-WebSocket-Key: (.*)\r\n/", $buffer, $match);
 
@@ -87,7 +92,8 @@ class Socket{
         $response .= "Sec-WebSocket-Accept: " . $new_key . "\r\n\r\n";
 
         socket_write($this->users[$user]['socket'], $response, strlen($response));
-        $this->users[$user]['shou'] = true;
+        $this->users[$user]['handshake'] = true;
+        $this->_log('Master socket  : ' . $this->users[$user]['socket']);
     }
 
     public function findUser( $socket )
@@ -148,14 +154,22 @@ class Socket{
         return $result;
     }
 
-    public function close()
+    public function close( $user )
     {
-        socket_close($this->_socket);
+        $this->_log('Close socket   : ' . $this->users[$user]['socket']);
+        socket_close($this->users[$user]['socket']);
+        unset($this->users[$user]);
+        $this->_list = array($this->_master);
+        foreach($this->users as $user)
+        {
+            $this->_list[] = $user['socket'];
+        }
     }
 
     public function _log( $msg )
     {
-        $filename = dirname(__FILE__).'\\log.log';
-        file_put_contents($filename, $msg."\n\n", FILE_APPEND);
+        $filename = dirname(__FILE__).'/log.log';
+        file_put_contents($filename, $msg."\n", FILE_APPEND);
     }
 }
+

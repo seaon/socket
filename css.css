@@ -1,0 +1,60 @@
+n: 0;padding: 0;}
+
+html,body{height: 100%;}
+
+body{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#content{
+    border: 1px #ccc solid;
+    width: 800px;
+    height: 600px;
+    display: flex;
+}
+
+#userList{
+    border-right: 1px #ccc solid;
+    height: 100%;
+    width: 149px;
+    flex-wrap: wrap;
+    align-content: space-between;
+}
+
+#chatBox{
+    height: 450px;
+    width: 650px;
+    border-bottom: 1px #ccc solid;
+}
+#input{
+    height: 150px;
+    width: 650px;
+    align-self: flex-end;
+}
+
+#inputBox{
+    height: 90px;
+    resize: none;
+    border-style: none;
+    width: 630px;
+    padding: 10px;
+}
+
+button{
+    padding: 5px 13px;
+    font-size: 18px;
+    float: right;
+    margin-right: 30px;
+}
+
+.user{
+    height: 20px;
+    padding: 10px;
+    text-align: center;
+}
+
+.user:hover{
+    background: #ccc;
+}
