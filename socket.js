@@ -1,4 +1,4 @@
-ndow.onload = function () {
+window.onload = function () {
 
     var url = 'ws://127.0.0.1:8000'
     var socket = new WebSocket(url)
